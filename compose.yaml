@@ -1,0 +1,49 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: alfa
+      POSTGRES_PASSWORD: alfa
+      POSTGRES_DB: alfa_bot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/restore_source.sh:/docker-entrypoint-initdb.d/02_restore_source.sh:ro
+      - ./data:/source:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alfa -d alfa_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Строит индекс базы знаний (чанки + эмбеддинги). Повторный запуск пропускает уже готовое.
+  indexer:
+    build: .
+    command: ["python", "-m", "scripts.build_index"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://alfa:alfa@db:5432/alfa_bot
+      SOURCE_DATABASE_URL: postgresql://alfa:alfa@db:5432/alfa_source
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  bot:
+    build: .
+    command: ["python", "-m", "app.bot"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://alfa:alfa@db:5432/alfa_bot
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    depends_on:
+      indexer:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
