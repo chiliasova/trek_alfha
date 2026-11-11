@@ -47,6 +47,22 @@ PROFILE_QUESTIONS = [
 ]
 
 
+OPTION_LABELS = {(field, value): label for field, _, opts in PROFILE_QUESTIONS for value, label in opts}
+
+
+def _profile_summary(profile: dict | None) -> str:
+    if not profile:
+        return "пока ничего не заполнено"
+    lines = []
+    names = {"stage": "Стадия", "legal_form": "Форма", "tax_regime": "Налоговый режим",
+             "experience": "Опыт", "industry": "Сфера"}
+    for field, name in names.items():
+        value = profile.get(field)
+        if value:
+            lines.append(f"• {name}: {html.escape(OPTION_LABELS.get((field, value), value))}")
+    return "\n".join(lines) or "пока ничего не заполнено"
+
+
 class ProfileForm(StatesGroup):
     step = State()
     industry = State()
@@ -110,8 +126,11 @@ async def on_profile_answer(cb: CallbackQuery, state: FSMContext) -> None:
     if value != "skip":
         await db.upsert_profile(cb.from_user.id, **{field: value})
         await db.log_event(cb.from_user.id, "profile_update", {field: value})
-    await cb.message.edit_reply_markup(reply_markup=None)
-    await cb.answer()
+    # Показываем выбранный вариант прямо в сообщении с вопросом, чтобы в чате был виден ответ
+    choice = "пропущено" if value == "skip" else OPTION_LABELS.get((field, value), value)
+    question = html.escape(cb.message.text or "")
+    await cb.message.edit_text(f"{question}\n<b>→ {html.escape(choice)}</b>", reply_markup=None)
+    await cb.answer(choice)
     idx = (await state.get_data()).get("idx", 0) + 1
     await _ask_step(cb.message, state, idx)
 
@@ -121,13 +140,17 @@ async def on_industry(message: Message, state: FSMContext) -> None:
     if message.text and message.text != "/skip":
         await db.upsert_profile(message.from_user.id, industry=message.text.strip()[:200])
     await state.clear()
-    await message.answer("Спасибо, учту это в ответах. Задавайте вопрос!")
+    profile = await db.get_profile(message.from_user.id)
+    await message.answer(
+        f"Спасибо! Вот что я запомнил о вашем бизнесе:\n{_profile_summary(profile)}\n\n"
+        "Учту это в ответах. Изменить можно командой /profile. Задавайте вопрос!"
+    )
 
 
 @router.message(Command("me"))
 async def cmd_me(message: Message) -> None:
     profile = await db.get_profile(message.from_user.id)
-    await message.answer(f"Ваш профиль: {rag._format_profile(profile)}\nИзменить: /profile")
+    await message.answer(f"Что я знаю о вашем бизнесе:\n{_profile_summary(profile)}\n\nИзменить: /profile")
 
 
 # ---------- Вопросы к базе знаний ----------
@@ -152,6 +175,8 @@ async def on_question(message: Message) -> None:
 
     question = message.text.strip()
     profile = await db.get_profile(user.id)
+    if profile:  # в LLM передаём понятные подписи, а не коды (usn6 -> «УСН 6%»)
+        profile = {k: OPTION_LABELS.get((k, v), v) for k, v in profile.items()}
     history = await db.recent_dialog(user.id, limit=4)
     await db.save_message(user.id, "user", question)
     await db.log_event(user.id, "question", {"text": question})
