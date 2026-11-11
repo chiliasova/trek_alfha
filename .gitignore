@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+# Выгрузка кейса не публикуется (условия кейса)
+data/*
+!data/.gitkeep
