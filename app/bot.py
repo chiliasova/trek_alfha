@@ -110,6 +110,7 @@ async def cmd_help(message: Message) -> None:
     await message.answer(
         "/profile — анкета о бизнесе\n"
         "/me — что я знаю о вашем бизнесе\n"
+        "/courses — подобрать курсы под ваш бизнес\n"
         "Просто напишите вопрос, чтобы получить ответ по базе знаний."
     )
 
@@ -193,15 +194,61 @@ async def on_question(message: Message) -> None:
         await message.answer("Не получилось обработать вопрос, попробуйте ещё раз чуть позже.")
         return
 
+    text = _render_answer(result)
+    await db.save_message(user.id, "assistant", result.text, result.kind, result.sources)
+    await db.log_event(user.id, "answer_shown", {
+        "kind": result.kind,
+        "doc_ids": [s["document_id"] for s in result.sources],
+        "recommended_ids": [r["document_id"] for r in result.recommendations],
+    })
+    await message.answer(text, disable_web_page_preview=True)
+
+
+def _link(title: str, url: str | None) -> str:
+    title = html.escape(title)
+    return f'<a href="{html.escape(url, quote=True)}">{title}</a>' if url else title
+
+
+def _render_courses(items: list[dict]) -> str:
+    lines = []
+    for i, c in enumerate(items, 1):
+        price = c["price"] or ("платный" if c["is_paid"] else "бесплатный")
+        price = price.rstrip(".")
+        price = price[:1].lower() + price[1:]
+        line = f"{i}. {_link(c['title'], c['url'])} ({html.escape(price)})"
+        if c["summary"]:
+            line += f"\n   {html.escape(c['summary'])}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _render_answer(result: rag.Answer) -> str:
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(result.text))
     if result.kind == "answer" and result.sources:
         text += "\n\n<b>Источники:</b>\n" + _render_sources(result.sources)
+        if result.recommendations:
+            text += "\n\n<b>Чтобы разобраться глубже:</b>\n" + _render_courses(result.recommendations)
+    elif result.kind == "courses":
+        text += "\n\n" + _render_courses(result.recommendations)
+        text += "\n\nМогу рассказать подробнее о любом из них или подобрать материалы под конкретную задачу."
+    elif result.kind == "not_found":
+        if result.sources:
+            text += "\n\nВозможно, пригодятся близкие материалы:\n" + _render_sources(result.sources)
+        text += "\n\nПопробуйте переформулировать вопрос или посмотрите курсы: /courses"
+    return text
 
-    await db.save_message(user.id, "assistant", result.text, result.kind, result.sources)
-    await db.log_event(user.id, "answer_shown", {
-        "kind": result.kind, "doc_ids": [s["document_id"] for s in result.sources],
-    })
-    await message.answer(text, disable_web_page_preview=True)
+
+@router.message(Command("courses"))
+async def cmd_courses(message: Message) -> None:
+    user = message.from_user
+    await db.touch_user(user.id, user.username, user.first_name)
+    profile = await db.get_profile(user.id)
+    if profile:
+        profile = {k: OPTION_LABELS.get((k, v), v) for k, v in profile.items()}
+    query = "курсы для предпринимателя " + rag._format_profile(profile) if profile else "курсы для начинающего предпринимателя"
+    result = await rag.courses(query, profile)
+    await db.log_event(user.id, "courses_shown", {"ids": [r["document_id"] for r in result.recommendations]})
+    await message.answer(_render_answer(result), disable_web_page_preview=True)
 
 
 async def main() -> None:

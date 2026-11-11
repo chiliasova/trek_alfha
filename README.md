@@ -59,14 +59,14 @@ Telegram ──► bot (aiogram 3) ──► RAG: гибридный поиск 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `BOT_TOKEN` | — | токен бота от [@BotFather](https://t.me/BotFather) |
-| `YC_API_KEY`, `YC_FOLDER_ID` | — | если заданы оба, используется Yandex Cloud (YandexGPT Lite, эмбеддинги text-search-doc/query), остальные LLM-настройки игнорируются |
+| `YC_API_KEY`, `YC_FOLDER_ID` | — | если заданы оба, используется Yandex Cloud (YandexGPT Pro, эмбеддинги text-search-doc/query), остальные LLM-настройки игнорируются |
 | `LLM_BASE_URL` | `http://host.docker.internal:11434/v1` | OpenAI-совместимый endpoint чата |
 | `LLM_API_KEY` | `ollama` | ключ API (для Ollama любой) |
 | `LLM_MODEL` | `qwen3:4b-instruct-2507-q4_K_M` | модель ответов |
 | `EMBED_BASE_URL`, `EMBED_API_KEY` | как у LLM | endpoint эмбеддингов |
 | `EMBED_MODEL` | `bge-m3` | модель эмбеддингов (1024 измерения) |
 | `RAG_TOP_K` | `6` | сколько фрагментов передавать в LLM |
-| `RAG_MIN_SIMILARITY` | `0.45` | порог «в базе нет ответа» |
+| `RAG_MIN_SIMILARITY` | `0.40` | порог «в базе нет ответа» |
 
 | `EMBED_QUERY_MODEL` | как `EMBED_MODEL` | отдельная модель для запросов (Yandex `text-search-query`) |
 | `LLM_PROJECT` | — | id каталога/проекта, если провайдер требует (Yandex Cloud: folder id) |

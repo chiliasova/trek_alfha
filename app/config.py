@@ -22,7 +22,7 @@ def _build() -> dict:
             llm_base_url=YANDEX_BASE_URL,
             llm_api_key=yc_key,
             llm_model=_env("LLM_MODEL") if _env("LLM_MODEL", "").startswith("gpt://")
-            else f"gpt://{yc_folder}/yandexgpt-lite/latest",
+            else f"gpt://{yc_folder}/yandexgpt/latest",
             embed_base_url=YANDEX_BASE_URL,
             embed_api_key=yc_key,
             embed_model=f"emb://{yc_folder}/text-search-doc/latest",
@@ -64,7 +64,7 @@ class Settings:
 
     # Поиск
     top_k: int = int(_env("RAG_TOP_K", "6"))
-    min_similarity: float = float(_env("RAG_MIN_SIMILARITY", "0.45"))
+    min_similarity: float = float(_env("RAG_MIN_SIMILARITY", "0.40"))
 
 
 settings = Settings(**_build())
