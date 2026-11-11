@@ -41,7 +41,7 @@ class Answer:
 async def search(query: str, k: int | None = None) -> list[Chunk]:
     """Гибридный поиск: косинусная близость эмбеддингов + полнотекстовый поиск, слияние через RRF."""
     k = k or settings.top_k
-    [qvec] = await llm.embed([query])
+    [qvec] = await llm.embed([query], query=True)
     pool = await get_pool()
     vec_rows = await pool.fetch(
         """

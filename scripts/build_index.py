@@ -282,6 +282,17 @@ async def main() -> None:
     else:
         log.info("Документы уже загружены, досчитываю эмбеддинги")
 
+    # При смене модели эмбеддингов старые векторы несовместимы: сбрасываем и считаем заново
+    await conn.execute("CREATE TABLE IF NOT EXISTS kb_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    prev = await conn.fetchval("SELECT value FROM kb_meta WHERE key = 'embed_model'")
+    if prev and prev != settings.embed_model:
+        log.info("Модель эмбеддингов сменилась (%s -> %s), пересчитываю", prev, settings.embed_model)
+        await conn.execute("UPDATE kb_chunks SET embedding = NULL")
+    await conn.execute(
+        "INSERT INTO kb_meta VALUES ('embed_model', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+        settings.embed_model,
+    )
+
     await embed_missing(conn)
     log.info("Индекс готов")
     await conn.close()

@@ -67,8 +67,14 @@ Telegram ──► bot (aiogram 3) ──► RAG: гибридный поиск 
 | `RAG_TOP_K` | `6` | сколько фрагментов передавать в LLM |
 | `RAG_MIN_SIMILARITY` | `0.45` | порог «в базе нет ответа» |
 
-Внешний API вместо Ollama: например, `LLM_BASE_URL=https://api.openai.com/v1`, `LLM_API_KEY=<ключ>`, `LLM_MODEL=gpt-4o-mini`.
-При смене модели эмбеддингов индекс нужно пересобрать (`docker compose down -v`).
+| `EMBED_QUERY_MODEL` | как `EMBED_MODEL` | отдельная модель для запросов (Yandex `text-search-query`) |
+| `LLM_PROJECT` | — | id каталога/проекта, если провайдер требует (Yandex Cloud: folder id) |
+
+Внешний API вместо Ollama:
+* OpenAI: `LLM_BASE_URL=https://api.openai.com/v1`, `LLM_API_KEY=<ключ>`, `LLM_MODEL=gpt-4o-mini`, `EMBED_MODEL=text-embedding-3-small`.
+* Yandex Cloud (AI Studio): пример в `.env.example`, модели `yandexgpt-lite` и `text-search-doc` / `text-search-query`.
+
+При смене модели эмбеддингов индексатор сам заметит это и пересчитает векторы при следующем запуске.
 
 ### Порты
 

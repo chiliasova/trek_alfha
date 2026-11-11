@@ -54,6 +54,12 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
 
 CREATE INDEX IF NOT EXISTS kb_chunks_tsv_idx ON kb_chunks USING GIN (tsv);
 
+-- Служебное: какой моделью посчитаны эмбеддинги
+CREATE TABLE IF NOT EXISTS kb_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 -- ---------- Диалоги ----------
 
 CREATE TABLE IF NOT EXISTS dialog_messages (

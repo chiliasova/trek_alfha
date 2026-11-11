@@ -26,6 +26,10 @@ class Settings:
     embed_base_url: str = _env("EMBED_BASE_URL", _env("LLM_BASE_URL", "http://localhost:11434/v1"))
     embed_api_key: str = _env("EMBED_API_KEY", _env("LLM_API_KEY", "ollama"))
     embed_model: str = _env("EMBED_MODEL", "bge-m3")
+    # Для моделей с раздельными эмбеддингами документа и запроса (например, Yandex text-search-query)
+    embed_query_model: str = _env("EMBED_QUERY_MODEL", "") or _env("EMBED_MODEL", "bge-m3")
+    # Идентификатор каталога/проекта, если провайдер его требует (Yandex Cloud: folder id)
+    llm_project: str = _env("LLM_PROJECT", "")
 
     # Поиск
     top_k: int = int(_env("RAG_TOP_K", "6"))
