@@ -59,6 +59,7 @@ Telegram ──► bot (aiogram 3) ──► RAG: гибридный поиск 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `BOT_TOKEN` | — | токен бота от [@BotFather](https://t.me/BotFather) |
+| `YC_API_KEY`, `YC_FOLDER_ID` | — | если заданы оба, используется Yandex Cloud (YandexGPT Lite, эмбеддинги text-search-doc/query), остальные LLM-настройки игнорируются |
 | `LLM_BASE_URL` | `http://host.docker.internal:11434/v1` | OpenAI-совместимый endpoint чата |
 | `LLM_API_KEY` | `ollama` | ключ API (для Ollama любой) |
 | `LLM_MODEL` | `qwen3:4b-instruct-2507-q4_K_M` | модель ответов |
@@ -72,7 +73,7 @@ Telegram ──► bot (aiogram 3) ──► RAG: гибридный поиск 
 
 Внешний API вместо Ollama:
 * OpenAI: `LLM_BASE_URL=https://api.openai.com/v1`, `LLM_API_KEY=<ключ>`, `LLM_MODEL=gpt-4o-mini`, `EMBED_MODEL=text-embedding-3-small`.
-* Yandex Cloud (AI Studio): пример в `.env.example`, модели `yandexgpt-lite` и `text-search-doc` / `text-search-query`.
+* Yandex Cloud: задайте `YC_API_KEY` (API-ключ сервисного аккаунта с ролью `ai.languageModels.user`) и `YC_FOLDER_ID` (id каталога).
 
 При смене модели эмбеддингов индексатор сам заметит это и пересчитает векторы при следующем запуске.
 
