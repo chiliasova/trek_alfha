@@ -101,6 +101,15 @@ async def search(query: str, k: int | None = None, content_types: list[str] | No
     ]
 
 
+EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+PHONE_RE = re.compile(r"(?<!\d)(?:\+7|8)[\s(-]*\d{3}[\s)-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}(?!\d)")
+
+
+def mask_pd(text: str) -> str:
+    """Убирает из текста email и телефоны перед отправкой во внешнюю LLM."""
+    return PHONE_RE.sub("[телефон]", EMAIL_RE.sub("[email]", text))
+
+
 def _format_profile(profile: dict | None) -> str:
     if not profile:
         return "не заполнен"
@@ -203,7 +212,9 @@ async def courses(query: str, profile: dict | None = None) -> Answer:
 
 async def answer(question: str, profile: dict | None = None, history: list[dict] | None = None,
                  search_query: str | None = None) -> Answer:
-    query = search_query or question
+    # Email и телефоны не уходят во внешние API ни в эмбеддинги, ни в LLM
+    question = mask_pd(question)
+    query = mask_pd(search_query or question)
     if COURSE_INTENT_RE.search(question) and len(question.split()) <= 8:
         return await courses(query, profile)
 
@@ -226,13 +237,15 @@ async def answer(question: str, profile: dict | None = None, history: list[dict]
     sources = _group_sources(chunks)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for m in history or []:
-        messages.append({"role": m["role"], "content": m["text"]})
+        messages.append({"role": m["role"], "content": mask_pd(m["text"])})
+    # В LLM уходят только сведения о бизнесе из профиля (без имени, username, Telegram id)
+    # и текст вопроса с замаскированными email/телефонами
     messages.append({
         "role": "user",
         "content": USER_TEMPLATE.format(
             profile=_format_profile(profile),
             context=_build_context(sources),
-            question=query,
+            question=mask_pd(query),
         ),
     })
     raw = await llm.chat(messages, temperature=0.1)
@@ -252,7 +265,7 @@ async def _offtopic_reply(question: str) -> str | None:
     """Шутливый ответ на вопрос не по теме. None, если вопрос всё-таки про бизнес."""
     try:
         reply = await llm.chat(
-            [{"role": "system", "content": OFFTOPIC_PROMPT}, {"role": "user", "content": question}],
+            [{"role": "system", "content": OFFTOPIC_PROMPT}, {"role": "user", "content": mask_pd(question)}],
             temperature=0.8, max_tokens=120,
         )
     except Exception:  # noqa: BLE001 — при сбое просто честный отказ
