@@ -12,7 +12,7 @@ _embed = AsyncOpenAI(base_url=settings.embed_base_url, api_key=settings.embed_ap
 async def embed(texts: list[str], query: bool = False) -> list[list[float]]:
     model = settings.embed_query_model if query else settings.embed_model
     try:
-        resp = await _embed.embeddings.create(model=model, input=texts)
+        resp = await _embed.embeddings.create(model=model, input=texts, encoding_format="float")
         return [item.embedding for item in resp.data]
     except BadRequestError:
         if len(texts) == 1:
@@ -20,7 +20,7 @@ async def embed(texts: list[str], query: bool = False) -> list[list[float]]:
         # Некоторые провайдеры принимают только один текст за запрос
         out = []
         for t in texts:
-            resp = await _embed.embeddings.create(model=model, input=t)
+            resp = await _embed.embeddings.create(model=model, input=t, encoding_format="float")
             out.append(resp.data[0].embedding)
             await asyncio.sleep(0.05)
         return out
