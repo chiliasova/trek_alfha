@@ -126,8 +126,9 @@ def _build_context(sources: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
-async def answer(question: str, profile: dict | None = None, history: list[dict] | None = None) -> Answer:
-    chunks = await search(question)
+async def answer(question: str, profile: dict | None = None, history: list[dict] | None = None,
+                 search_query: str | None = None) -> Answer:
+    chunks = await search(search_query or question)
     if not chunks or max(c.score for c in chunks) < settings.min_similarity:
         return Answer("not_found", NOT_FOUND_TEXT)
 
@@ -140,7 +141,7 @@ async def answer(question: str, profile: dict | None = None, history: list[dict]
         "content": USER_TEMPLATE.format(
             profile=_format_profile(profile),
             context=_build_context(sources),
-            question=question,
+            question=search_query or question,
         ),
     })
     raw = await llm.chat(messages)

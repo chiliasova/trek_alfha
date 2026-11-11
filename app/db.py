@@ -59,7 +59,7 @@ async def save_message(user_id: int, role: str, text: str, answer_type: str | No
 async def recent_dialog(user_id: int, limit: int = 6) -> list[dict]:
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT role, text FROM dialog_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
+        "SELECT role, text, answer_type FROM dialog_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
         user_id, limit,
     )
     return [dict(r) for r in reversed(rows)]

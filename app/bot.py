@@ -1,6 +1,7 @@
 import asyncio
 import html
 import logging
+import re
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -156,13 +157,18 @@ async def on_question(message: Message) -> None:
     await db.log_event(user.id, "question", {"text": question})
 
     try:
-        result = await rag.answer(question, profile=profile, history=history)
+        # Если прошлым сообщением бот уточнял вопрос, ищем по исходному вопросу вместе с уточнением
+        search_query = question
+        if len(history) >= 2 and history[-1]["role"] == "assistant" and history[-1]["answer_type"] == "clarify" \
+                and history[-2]["role"] == "user":
+            search_query = f"{history[-2]['text']} {question}"
+        result = await rag.answer(question, profile=profile, history=history, search_query=search_query)
     except Exception:
         log.exception("RAG failed")
         await message.answer("Не получилось обработать вопрос, попробуйте ещё раз чуть позже.")
         return
 
-    text = html.escape(result.text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(result.text))
     if result.kind == "answer" and result.sources:
         text += "\n\n<b>Источники:</b>\n" + _render_sources(result.sources)
 
