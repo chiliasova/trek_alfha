@@ -6,7 +6,7 @@ import numpy as np
 from app import llm
 from app.config import settings
 from app.db import get_pool
-from app.prompts import NOT_FOUND_TEXT, SYSTEM_PROMPT, USER_TEMPLATE
+from app.prompts import NOT_FOUND_TEXT, OFFTOPIC_PROMPT, SYSTEM_PROMPT, USER_TEMPLATE
 
 PROFILE_LABELS = {
     "legal_form": "Форма",
@@ -211,6 +211,10 @@ async def answer(question: str, profile: dict | None = None, history: list[dict]
     best = max((c.score for c in chunks), default=0.0)
     # Решение «в базе нет» принимаем по самому вопросу, без добавок из профиля
     if best < settings.min_similarity:
+        if best < RELATED_MIN_SIMILARITY:
+            joke = await _offtopic_reply(question)
+            if joke:
+                return Answer("offtopic", joke)
         return await _not_found(chunks, best)
 
     retrieval_query = query
@@ -242,6 +246,20 @@ async def answer(question: str, profile: dict | None = None, history: list[dict]
     # Рекомендация курса по теме вопроса, если такой курс есть
     recs = [c for c in await _course_docs(retrieval_query, k=1) if c["score"] >= COURSE_RECOMMEND_SIMILARITY]
     return Answer("answer", text, cited, recs)
+
+
+async def _offtopic_reply(question: str) -> str | None:
+    """Шутливый ответ на вопрос не по теме. None, если вопрос всё-таки про бизнес."""
+    try:
+        reply = await llm.chat(
+            [{"role": "system", "content": OFFTOPIC_PROMPT}, {"role": "user", "content": question}],
+            temperature=0.8, max_tokens=120,
+        )
+    except Exception:  # noqa: BLE001 — при сбое просто честный отказ
+        return None
+    if not reply or reply.strip().upper().startswith("BUSINESS"):
+        return None
+    return reply.strip()
 
 
 async def _not_found(chunks: list[Chunk], best: float) -> Answer:
