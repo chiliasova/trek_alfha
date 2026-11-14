@@ -30,6 +30,10 @@ def normalize_url(url: str) -> str:
 
 
 async def apply(pool: asyncpg.Pool, dry_run: bool = False) -> dict:
+    # Совместимость с уже существующими Docker-томами, созданными до интеграции.
+    await pool.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS stage TEXT")
+    await pool.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS level TEXT")
+    await pool.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS sphere TEXT")
     courses = json.loads(COURSES_PATH.read_text(encoding="utf-8"))
     updated = 0
     not_found: list[str] = []

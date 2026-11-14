@@ -16,8 +16,17 @@ import argparse
 import asyncio
 import os
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Iterable
+
+REGIME_MAP = {
+    "usn6": "УСН", "usn15": "УСН", "УСН": "УСН",
+    "patent": "Патент", "Патент": "Патент",
+    "npd": "НПД", "НПД": "НПД",
+    "osno": "ОСНО", "ОСНО": "ОСНО",
+}
+
+LEGAL_FORMS_WITH_IP = {"ip", "ИП"}
 
 import asyncpg
 
@@ -117,7 +126,7 @@ def get_deadlines(year: int, regimes: tuple[str, ...] | None = None) -> list[Dea
     items += [npd_deadline(m, year) for m in range(1, 13)]
 
     if regimes:
-        wanted = set(regimes)
+        wanted = {REGIME_MAP.get(r, r) for r in regimes}
         items = [d for d in items if wanted.intersection(d.regimes)]
 
     return sorted(items, key=lambda d: d.date)
@@ -148,24 +157,15 @@ async def create_reminders(
     inserted = 0
 
     for d in deadlines:
-        next_run = datetime(d.date.year, d.date.month, d.date.day, 10, 0)
-        exists = await pool.fetchval(
-            """SELECT 1 FROM reminders
-                WHERE user_id = $1
-                  AND kind = 'tax'
-                  AND text = $2
-                  AND next_run_at = $3
-                LIMIT 1""",
-            user_id, d.title, next_run,
-        )
-        if exists:
-            continue
-        await pool.execute(
+        next_run = datetime(d.date.year, d.date.month, d.date.day, 10, 0, tzinfo=timezone.utc)
+        status = await pool.execute(
             """INSERT INTO reminders (user_id, kind, text, next_run_at)
-               VALUES ($1, 'tax', $2, $3)""",
+               VALUES ($1, 'tax', $2, $3)
+               ON CONFLICT (user_id, kind, text, next_run_at) DO NOTHING""",
             user_id, d.title, next_run,
         )
-        inserted += 1
+        if status.endswith("1"):
+            inserted += 1
 
     return inserted
 
@@ -181,9 +181,12 @@ async def create_reminders_for_user(
         "SELECT tax_regime FROM business_profiles WHERE user_id = $1",
         user_id,
     )
-    regimes = None
-    if tax_regime:
-        regimes = tuple(r for r in [tax_regime] if r) + ("ИП",)
+    regimes = (REGIME_MAP[tax_regime],) if tax_regime in REGIME_MAP else None
+    legal_form = await pool.fetchval(
+        "SELECT legal_form FROM business_profiles WHERE user_id = $1", user_id
+    )
+    if legal_form in LEGAL_FORMS_WITH_IP:
+        regimes = tuple(dict.fromkeys((*(regimes or ()), "ИП")))
     return await create_reminders(pool, user_id, year, regimes=regimes)
 
 

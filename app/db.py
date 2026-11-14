@@ -13,10 +13,29 @@ async def _init_conn(conn: asyncpg.Connection) -> None:
     await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
 
 
+async def _migrate(conn: asyncpg.Connection) -> None:
+    """Небольшая idempotent-миграция для уже созданных Docker-томов."""
+    await conn.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS stage TEXT")
+    await conn.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS level TEXT")
+    await conn.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS sphere TEXT")
+    await conn.execute("""
+        DELETE FROM reminders a USING reminders b
+         WHERE a.id > b.id
+           AND a.user_id = b.user_id AND a.kind = b.kind
+           AND a.text = b.text AND a.next_run_at = b.next_run_at
+    """)
+    await conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS reminders_dedupe_idx
+            ON reminders (user_id, kind, text, next_run_at)
+    """)
+
+
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(settings.database_url, init=_init_conn, min_size=1, max_size=5)
+        async with _pool.acquire() as conn:
+            await _migrate(conn)
     return _pool
 
 
@@ -85,3 +104,33 @@ async def upsert_profile(user_id: int, **fields) -> None:
         """,
         user_id, *fields.values(),
     )
+
+
+async def create_reminder(user_id: int, text: str, next_run_at, repeat_interval=None) -> int:
+    pool = await get_pool()
+    return await pool.fetchval(
+        """INSERT INTO reminders (user_id, kind, text, next_run_at, repeat_interval)
+           VALUES ($1, 'custom', $2, $3, $4) RETURNING id""",
+        user_id, text, next_run_at, repeat_interval,
+    )
+
+
+async def list_reminders(user_id: int) -> list[dict]:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT id, kind, text, next_run_at, repeat_interval
+             FROM reminders
+            WHERE user_id = $1 AND is_active
+            ORDER BY next_run_at LIMIT 20""",
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def cancel_reminder(user_id: int, reminder_id: int) -> bool:
+    pool = await get_pool()
+    status = await pool.execute(
+        "UPDATE reminders SET is_active = FALSE WHERE id = $1 AND user_id = $2 AND is_active",
+        reminder_id, user_id,
+    )
+    return status.endswith("1")
