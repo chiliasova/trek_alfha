@@ -1,0 +1,34 @@
+{
+  "marketing_ozon.md": {
+    "title": "Как запустить магазин на Ozon с нуля",
+    "url": "https://alfacourse.ru/materials/ozon-start",
+    "topic": "marketing",
+    "is_paid": false,
+    "target_stage": "start",
+    "level": "beginner"
+  },
+  "taxes_usn.txt": {
+    "title": "УСН: как считать и платить налог",
+    "url": "https://alfacourse.ru/materials/usn-guide",
+    "topic": "taxes",
+    "is_paid": false,
+    "target_stage": "start",
+    "level": "beginner"
+  },
+  "sales_b2b_basics.md": {
+    "title": "Продвинутые техники продаж для B2B",
+    "url": "https://alfacourse.ru/materials/b2b-sales-pro",
+    "topic": "sales",
+    "is_paid": true,
+    "target_stage": "growth",
+    "level": "advanced"
+  },
+  "legal_ip_basics.md": {
+    "title": "ИП или ООО: что выбрать на старте",
+    "url": "https://alfacourse.ru/materials/ip-vs-ooo",
+    "topic": "legal",
+    "is_paid": false,
+    "target_stage": "start",
+    "level": "beginner"
+  }
+}
