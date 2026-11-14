@@ -67,7 +67,19 @@ async def deliver_due(bot: Bot) -> int:
             await db.log_event(reminder["user_id"], "reminder_sent", {"reminder_id": reminder["id"]})
             sent += 1
         except Exception:  # noqa: BLE001 — одна ошибка не должна останавливать worker
+            # Возвращаем напоминание в очередь: сбой Telegram не должен его терять.
             log.exception("Не удалось отправить reminder %s", reminder["id"])
+            try:
+                await pool.execute(
+                    """UPDATE reminders
+                          SET is_active = TRUE,
+                              next_run_at = LEAST(next_run_at, $2),
+                              last_sent_at = NULL
+                        WHERE id = $1""",
+                    reminder["id"], reminder["next_run_at"],
+                )
+            except Exception:  # noqa: BLE001
+                log.exception("Не удалось вернуть reminder %s в очередь", reminder["id"])
     return sent
 
 
