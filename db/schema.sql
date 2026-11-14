@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS reminders (
     last_sent_at     TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS reminders_due_idx ON reminders (next_run_at) WHERE is_active;
+CREATE UNIQUE INDEX IF NOT EXISTS reminders_dedupe_idx
+    ON reminders (user_id, kind, text, next_run_at);
 
 -- ---------- События (метрика возврата на платформу) ----------
 

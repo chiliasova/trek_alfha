@@ -13,7 +13,8 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app import db, rag
 from app.config import settings
-from knowledge_base import recommender
+from knowledge_base import recommender, tax_calendar
+from app import reminders
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -112,6 +113,7 @@ async def cmd_help(message: Message) -> None:
         "/profile — анкета о бизнесе\n"
         "/me — что я знаю о вашем бизнесе\n"
         "/courses — подобрать курсы под ваш бизнес\n"
+        "/tax_reminders — создать налоговые напоминания\n"
         "Просто напишите вопрос, чтобы получить ответ по базе знаний."
     )
 
@@ -239,6 +241,14 @@ def _render_answer(result: rag.Answer) -> str:
     return text
 
 
+@router.message(Command("tax_reminders"))
+async def cmd_tax_reminders(message: Message) -> None:
+    await db.touch_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+    pool = await db.get_pool()
+    created = await tax_calendar.create_reminders_for_user(pool, message.from_user.id)
+    await message.answer(f"Налоговые напоминания обновлены. Новых: {created}.")
+
+
 @router.message(Command("courses"))
 async def cmd_courses(message: Message) -> None:
     user = message.from_user
@@ -280,10 +290,15 @@ async def main() -> None:
     dp = Dispatcher()
     dp.include_router(router)
     await db.get_pool()
+    stop = asyncio.Event()
+    reminder_task = asyncio.create_task(reminders.worker(bot, stop))
     try:
         await dp.start_polling(bot)
     finally:
+        stop.set()
+        await reminder_task
         await db.close_pool()
+        await bot.session.close()
 
 
 if __name__ == "__main__":

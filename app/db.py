@@ -13,10 +13,29 @@ async def _init_conn(conn: asyncpg.Connection) -> None:
     await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
 
 
+async def _migrate(conn: asyncpg.Connection) -> None:
+    """Небольшая idempotent-миграция для уже созданных Docker-томов."""
+    await conn.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS stage TEXT")
+    await conn.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS level TEXT")
+    await conn.execute("ALTER TABLE kb_documents ADD COLUMN IF NOT EXISTS sphere TEXT")
+    await conn.execute("""
+        DELETE FROM reminders a USING reminders b
+         WHERE a.id > b.id
+           AND a.user_id = b.user_id AND a.kind = b.kind
+           AND a.text = b.text AND a.next_run_at = b.next_run_at
+    """)
+    await conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS reminders_dedupe_idx
+            ON reminders (user_id, kind, text, next_run_at)
+    """)
+
+
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(settings.database_url, init=_init_conn, min_size=1, max_size=5)
+        async with _pool.acquire() as conn:
+            await _migrate(conn)
     return _pool
 
 
