@@ -41,9 +41,11 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    # Бот может отвечать на /start, /help и профиль, пока долгий индексатор
+    # достраивает embeddings. RAG начнёт использовать чанки по мере готовности.
     depends_on:
-      course-meta:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
 
   # Применяет разметку stage/level/sphere к курсам после индексации.
   course-meta:
