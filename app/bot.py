@@ -2,6 +2,7 @@ import asyncio
 import html
 import logging
 import re
+from datetime import datetime, timezone
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -114,6 +115,9 @@ async def cmd_help(message: Message) -> None:
         "/me — что я знаю о вашем бизнесе\n"
         "/courses — подобрать курсы под ваш бизнес\n"
         "/tax_reminders — создать налоговые напоминания\n"
+        "/remind — создать разовое напоминание\n"
+        "/reminders — список напоминаний\n"
+        "/cancel_reminder — отменить напоминание\n"
         "Просто напишите вопрос, чтобы получить ответ по базе знаний."
     )
 
@@ -247,6 +251,45 @@ async def cmd_tax_reminders(message: Message) -> None:
     pool = await db.get_pool()
     created = await tax_calendar.create_reminders_for_user(pool, message.from_user.id)
     await message.answer(f"Налоговые напоминания обновлены. Новых: {created}.")
+
+
+@router.message(Command("reminders"))
+async def cmd_reminders(message: Message) -> None:
+    items = await db.list_reminders(message.from_user.id)
+    if not items:
+        await message.answer("Активных напоминаний нет.")
+        return
+    lines = [f"{x['id']}. {x['next_run_at']:%d.%m.%Y %H:%M} — {x['text']}" for x in items]
+    await message.answer("Активные напоминания:\n" + "\n".join(lines))
+
+
+@router.message(Command("remind"))
+async def cmd_remind(message: Message) -> None:
+    parts = (message.text or "").split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer("Формат: /remind ДД.ММ.ГГГГ ЧЧ:ММ текст")
+        return
+    try:
+        when = datetime.strptime(f"{parts[1]} {parts[2].split(maxsplit=1)[0]}", "%d.%m.%Y %H:%M").replace(tzinfo=timezone.utc)
+        text = parts[2].split(maxsplit=1)[1]
+    except (ValueError, IndexError):
+        await message.answer("Не понимаю дату. Пример: /remind 20.11.2026 10:00 Позвонить клиенту")
+        return
+    if when <= datetime.now(timezone.utc):
+        await message.answer("Дата напоминания должна быть в будущем.")
+        return
+    reminder_id = await db.create_reminder(message.from_user.id, text[:500], when)
+    await message.answer(f"Напоминание создано: #{reminder_id}")
+
+
+@router.message(Command("cancel_reminder"))
+async def cmd_cancel_reminder(message: Message) -> None:
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) != 2 or not parts[1].isdigit():
+        await message.answer("Формат: /cancel_reminder ID")
+        return
+    ok = await db.cancel_reminder(message.from_user.id, int(parts[1]))
+    await message.answer("Напоминание отменено." if ok else "Активное напоминание с таким ID не найдено.")
 
 
 @router.message(Command("courses"))

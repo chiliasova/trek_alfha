@@ -104,3 +104,33 @@ async def upsert_profile(user_id: int, **fields) -> None:
         """,
         user_id, *fields.values(),
     )
+
+
+async def create_reminder(user_id: int, text: str, next_run_at, repeat_interval=None) -> int:
+    pool = await get_pool()
+    return await pool.fetchval(
+        """INSERT INTO reminders (user_id, kind, text, next_run_at, repeat_interval)
+           VALUES ($1, 'custom', $2, $3, $4) RETURNING id""",
+        user_id, text, next_run_at, repeat_interval,
+    )
+
+
+async def list_reminders(user_id: int) -> list[dict]:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT id, kind, text, next_run_at, repeat_interval
+             FROM reminders
+            WHERE user_id = $1 AND is_active
+            ORDER BY next_run_at LIMIT 20""",
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def cancel_reminder(user_id: int, reminder_id: int) -> bool:
+    pool = await get_pool()
+    status = await pool.execute(
+        "UPDATE reminders SET is_active = FALSE WHERE id = $1 AND user_id = $2 AND is_active",
+        reminder_id, user_id,
+    )
+    return status.endswith("1")
