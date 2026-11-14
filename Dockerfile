@@ -11,5 +11,6 @@ RUN pip install -r requirements.txt
 
 COPY app ./app
 COPY scripts ./scripts
+COPY knowledge_base ./knowledge_base
 
 CMD ["python", "-m", "app.bot"]

@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS kb_documents (
     url           TEXT,               -- ссылка на материал на платформе (только из выгрузки)
     is_paid       BOOLEAN NOT NULL DEFAULT FALSE,
     topics        TEXT[]  NOT NULL DEFAULT '{}',
+    -- Метаданные персонализации, заполняются из knowledge_base/data/real_courses.json
+    stage         TEXT,
+    level         TEXT,
+    sphere        TEXT,
     UNIQUE (source_table, source_id)
 );
 

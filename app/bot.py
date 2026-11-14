@@ -13,6 +13,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app import db, rag
 from app.config import settings
+from knowledge_base import recommender
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -247,6 +248,25 @@ async def cmd_courses(message: Message) -> None:
         profile = {k: OPTION_LABELS.get((k, v), v) for k, v in profile.items()}
     query = "курсы для предпринимателя " + rag._format_profile(profile) if profile else "курсы для начинающего предпринимателя"
     result = await rag.courses(query, profile)
+    # Подмешиваем персональные рекомендации из разметки Даши, если она уже загружена.
+    try:
+        pool = await db.get_pool()
+        scored = await recommender.recommend_for_user(pool, user.id, top_k=4)
+        if scored:
+            result.recommendations = [
+                {
+                    "document_id": item["material"].get("id"),
+                    "title": item["material"].get("title"),
+                    "url": item["material"].get("url"),
+                    "is_paid": item["material"].get("access") == "платный",
+                    "price": "платный" if item["material"].get("access") == "платный" else "бесплатный",
+                    "summary": "; ".join(item["reasons"]),
+                }
+                for item in scored
+            ]
+            result.text = "Подобрал материалы с учётом вашего профиля:"
+    except Exception:
+        log.exception("Personalized recommendations unavailable")
     await db.log_event(user.id, "courses_shown", {"ids": [r["document_id"] for r in result.recommendations]})
     await message.answer(_render_answer(result), disable_web_page_preview=True)
 

@@ -42,6 +42,17 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
+      course-meta:
+        condition: service_completed_successfully
+
+  # Применяет разметку stage/level/sphere к курсам после индексации.
+  course-meta:
+    build: .
+    command: ["python", "-m", "knowledge_base.load_course_meta"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://alfa:alfa@db:5432/alfa_bot
+    depends_on:
       indexer:
         condition: service_completed_successfully
 
